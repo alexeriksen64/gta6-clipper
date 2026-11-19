@@ -1,0 +1,85 @@
+# ---- GTA VI auto-clipper config ----
+twitch:
+  # Create an app at https://dev.twitch.tv/console/apps (free). Only used to find live streams.
+  client_id: ""
+  client_secret: ""
+
+game_names: ["Grand Theft Auto VI", "Grand Theft Auto 6", "GTA VI"]
+
+discovery:
+  top_n: 8                # how many of the biggest streams to watch at once (each = 1 video download)
+  min_viewers: 1500
+  languages: ["en"]       # [] = all languages
+  refresh_seconds: 300    # re-check which streams are top
+  include_channels: []    # always watch these (e.g. reaction streamers not in the GTA category)
+  exclude_channels: []
+
+recording:
+  quality: "720p60,720p,480p,best"   # lower = less bandwidth; 720p is plenty for Shorts
+  segment_seconds: 4
+  buffer_seconds: 180                # rolling buffer kept on disk per stream
+
+detection:
+  bin_seconds: 1
+  window_seconds: 6        # chat rate is measured over this window
+  baseline_seconds: 300    # "normal" chat speed is learned over ~5 min
+  warmup_seconds: 90       # don't trigger until a baseline exists
+  z_threshold: 3.5         # how many std-devs above normal
+  ratio_threshold: 2.3     # AND at least this many times normal speed
+  min_msgs_per_sec: 3      # ignore tiny chats
+  cooldown_seconds: 90     # per channel, avoid duplicate clips of the same moment
+  hype_tokens: [KEKW, OMEGALUL, LUL, LULW, ICANT, LMAO, LMFAO, Pog, PogChamp, POGGERS, Pog, W, L, "?", "???",
+                monkaS, monkaW, Clueless, Aware, "o7", HUH, WAYTOO, Kappa, "GG", "CLIP", "CLIPPED", "+2", "-2"]
+
+clip:
+  pre_seconds: 28          # video kept before chat starts exploding (chat reacts late)
+  post_seconds: 12         # video kept after the trigger
+  latency_offset_seconds: 0  # shift clip window if clips start too early (+) or late (-)
+
+edit:
+  enabled: true
+  format: vertical         # vertical (9:16 Shorts/TikTok/Reels) | horizontal (16:9)
+  layout: blur             # vertical only: blur (full frame on blurred bg) | crop (center crop)
+  whisper_model: small     # tiny/base/small/medium/large-v3 — larger = better captions, slower
+  whisper_device: auto     # auto | cpu | cuda
+  language: en             # null = auto-detect
+  words_per_caption: 3
+  caption_font: "Arial Black"  # any installed font (Montserrat/Poppins look great); falls back if missing
+  caption_size: 88
+  highlight_color: "&H0000E5FF"   # ASS BGR colour of the active word (yellow)
+  credit: true             # "twitch.tv/<channel>" tag at the top
+  workers: 1               # parallel edit jobs (whisper is the slow part)
+  cold_open: true          # start with the 2.5s peak moment as a hook, then play the clip
+  hook_title: true         # big title at the top made from the streamer's own words at the moment
+
+# Paid clipping campaigns. With `campaign_mode: true` ONLY these channels are watched,
+# and clips are only made while the channel is streaming one of `game_names` (checked via the
+# Twitch API every few minutes when keys are set).
+campaign_mode: true
+campaigns:
+  - name: "Kai Cenat - $10K GTA 6 Pool"
+    url: https://contentrewards.com/c/campaigns/1d2bcb00-c904-415f-aa82-f95b96baad86
+    channels: [kaicenat]
+    require_game: true            # rule: Kai playing GTA 6 must be the main focus
+    hashtags: ["#KaiCenat", "#GTA6", "#GTAVI"]   # #KaiCenat is required by the campaign
+    credit: "twitch.tv/kaicenat"
+    platforms: [TikTok, YouTube Shorts, Instagram Reels, X]
+    # Pool: 1K views per clip to count, 750K total views to qualify, paid when the pool ends.
+
+  - name: "KreekCraft GTA 6 Clipping ($1/1K)"
+    url: https://contentrewards.com/c/campaigns/2eaa14fb-6927-4136-897e-b096e0d907d6
+    channels: [kreekcraft]
+    require_game: true            # rule: only his official GTA 6 streams
+    caption_text: "Watch KreekCraft on YouTube and Twitch"   # required line
+    hashtags: ["#GTA6", "#KreekCraft", "#GrandTheftAutoVI"]   # all three required
+    credit: "twitch.tv/kreekcraft"
+    platforms: [TikTok, Instagram Reels, YouTube Shorts]     # X is NOT eligible
+    # REQUIRED: the official logo from the campaign's reference files, saved in the repo at this path.
+    # Clips without it are flagged on the release page and must not be submitted.
+    logo: logos/kreekcraft.png
+    logo_position: top-right
+    # Other rules to follow when posting: 40%+ US/UK/CA/AU audience, 0.8%+ engagement with likes
+    # visible, keep posts up 30+ days, max 5 near-identical posts, warm up new accounts first.
+
+output_dir: clips
+work_dir: work
