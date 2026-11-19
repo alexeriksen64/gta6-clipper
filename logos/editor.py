@@ -13,29 +13,47 @@ _model = None
 _model_lock = threading.Lock()
 
 
+def _load_audio(video: Path):
+    """Decode audio with ffmpeg -> 16 kHz mono float32 numpy array (avoids PyAV version clashes)."""
+    import numpy as np
+    r = subprocess.run(["ffmpeg", "-v", "error", "-i", str(video), "-vn", "-ac", "1", "-ar", "16000",
+                        "-f", "f32le", "-"], capture_output=True)
+    if r.returncode or not r.stdout:
+        return None
+    return np.frombuffer(r.stdout, dtype=np.float32)
+
+
 def transcribe(video: Path, cfg: dict) -> list[dict]:
-    """Return [{'word', 'start', 'end'}]. Empty list if faster-whisper isn't installed."""
+    """Return [{'word', 'start', 'end'}]. Empty list (= no captions) if anything goes wrong."""
     global _model
     try:
         from faster_whisper import WhisperModel
     except ImportError:
         log.warning("faster-whisper not installed — rendering without captions")
         return []
-    with _model_lock:
-        if _model is None:
-            dev = cfg.get("whisper_device", "auto")
-            log.info("loading whisper model %s (%s)", cfg.get("whisper_model", "small"), dev)
-            _model = WhisperModel(cfg.get("whisper_model", "small"), device=dev,
-                                  compute_type="auto")
-        segs, _ = _model.transcribe(str(video), language=cfg.get("language") or None,
-                                    word_timestamps=True, vad_filter=True, beam_size=5)
-        words = []
-        for s in segs:
-            for w in s.words or []:
-                t = w.word.strip()
-                if t:
-                    words.append({"word": t, "start": float(w.start), "end": float(w.end)})
-    return words
+    try:
+        audio = _load_audio(video)
+        if audio is None or len(audio) < 1600:
+            log.warning("no audio in %s — rendering without captions", video.name)
+            return []
+        with _model_lock:
+            if _model is None:
+                dev = cfg.get("whisper_device", "auto")
+                log.info("loading whisper model %s (%s)", cfg.get("whisper_model", "small"), dev)
+                _model = WhisperModel(cfg.get("whisper_model", "small"), device=dev,
+                                      compute_type="auto")
+            segs, _ = _model.transcribe(audio, language=cfg.get("language") or None,
+                                        word_timestamps=True, vad_filter=True, beam_size=5)
+            words = []
+            for s in segs:
+                for w in s.words or []:
+                    t = w.word.strip()
+                    if t:
+                        words.append({"word": t, "start": float(w.start), "end": float(w.end)})
+        return words
+    except Exception as e:  # noqa: BLE001 — captions are nice-to-have, never lose the clip
+        log.exception("transcription failed (%s) — rendering without captions", e)
+        return []
 
 
 # -- captions -------------------------------------------------------------------

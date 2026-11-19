@@ -190,8 +190,8 @@ class Clipper:
                 "moment_offset": round(min(max(s.start_ts - 3 - start, 1.5), (end - start) - 1.5), 2),
             }
             if camp and camp.get("logo"):
-                lp = Path(camp["logo"])
-                if lp.exists():
+                lp = find_logo(camp["logo"])
+                if lp:
                     meta["logo"] = str(lp)
                     meta["logo_position"] = camp.get("logo_position", "top-right")
                     meta["logo_width"] = camp.get("logo_width")
@@ -235,6 +235,16 @@ class Clipper:
                         "post_caption", "transcript")}) + "\n")
             except Exception as e:  # noqa: BLE001
                 log.exception("edit failed for %s: %s", meta["id"], e)
+                # never lose the moment: publish the uncaptioned original instead
+                try:
+                    meta["file"] = None
+                    meta["warning"] = ((meta.get("warning") or "") +
+                                       " Editing failed — this is the raw clip without captions/overlay.").strip()
+                    meta.setdefault("post_caption", make_caption(meta))
+                    (self.out / f"{meta['id']}.json").write_text(json.dumps(meta, indent=2))
+                    await asyncio.to_thread(self.publisher.publish, meta)
+                except Exception:  # noqa: BLE001
+                    log.exception("fallback publish failed for %s", meta["id"])
             finally:
                 self.pending[c] = self.pending.get(c, 1) - 1
                 self.queue.task_done()
@@ -264,6 +274,20 @@ class Clipper:
                 t.cancel()
             for r in self.recorders.values():
                 r.stop()
+
+
+def find_logo(path: str) -> Path | None:
+    """Find a logo even if its name got a different/duplicated ending, e.g.
+    logos/kreekcraft.png.PNG or logos/KreekCraft.jpg for logos/kreekcraft.png."""
+    p = Path(path)
+    if p.exists():
+        return p
+    stem = p.name.split(".")[0].lower()
+    if p.parent.is_dir():
+        for f in sorted(p.parent.iterdir()):
+            if f.is_file() and f.name.lower().split(".")[0] == stem:
+                return f
+    return None
 
 
 def make_caption(meta: dict) -> str:
