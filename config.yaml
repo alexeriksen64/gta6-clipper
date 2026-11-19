@@ -72,12 +72,13 @@ campaigns:
     require_game: true            # rule: only his official GTA 6 streams
     caption_text: "Watch KreekCraft on YouTube and Twitch"   # required line
     hashtags: ["#GTA6", "#KreekCraft", "#GrandTheftAutoVI"]   # all three required
-    credit: "twitch.tv/kreekcraft"
+    credit: ""                    # no extra credit text — the official overlay already shows it
     platforms: [TikTok, Instagram Reels, YouTube Shorts]     # X is NOT eligible
     # REQUIRED: the official logo from the campaign's reference files, saved in the repo at this path.
     # Clips without it are flagged on the release page and must not be submitted.
     logo: logos/kreekcraft.png
-    logo_position: top-right
+    logo_position: top-center     # the overlay is a wide banner (Twitch + YouTube icons + name)
+    logo_width: 640               # px on the 1080-wide video — big enough to be "clearly visible"
     # Other rules to follow when posting: 40%+ US/UK/CA/AU audience, 0.8%+ engagement with likes
     # visible, keep posts up 30+ days, max 5 near-identical posts, warm up new accounts first.
 

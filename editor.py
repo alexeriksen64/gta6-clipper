@@ -13,29 +13,47 @@ _model = None
 _model_lock = threading.Lock()
 
 
+def _load_audio(video: Path):
+    """Decode audio with ffmpeg -> 16 kHz mono float32 numpy array (avoids PyAV version clashes)."""
+    import numpy as np
+    r = subprocess.run(["ffmpeg", "-v", "error", "-i", str(video), "-vn", "-ac", "1", "-ar", "16000",
+                        "-f", "f32le", "-"], capture_output=True)
+    if r.returncode or not r.stdout:
+        return None
+    return np.frombuffer(r.stdout, dtype=np.float32)
+
+
 def transcribe(video: Path, cfg: dict) -> list[dict]:
-    """Return [{'word', 'start', 'end'}]. Empty list if faster-whisper isn't installed."""
+    """Return [{'word', 'start', 'end'}]. Empty list (= no captions) if anything goes wrong."""
     global _model
     try:
         from faster_whisper import WhisperModel
     except ImportError:
         log.warning("faster-whisper not installed — rendering without captions")
         return []
-    with _model_lock:
-        if _model is None:
-            dev = cfg.get("whisper_device", "auto")
-            log.info("loading whisper model %s (%s)", cfg.get("whisper_model", "small"), dev)
-            _model = WhisperModel(cfg.get("whisper_model", "small"), device=dev,
-                                  compute_type="auto")
-        segs, _ = _model.transcribe(str(video), language=cfg.get("language") or None,
-                                    word_timestamps=True, vad_filter=True, beam_size=5)
-        words = []
-        for s in segs:
-            for w in s.words or []:
-                t = w.word.strip()
-                if t:
-                    words.append({"word": t, "start": float(w.start), "end": float(w.end)})
-    return words
+    try:
+        audio = _load_audio(video)
+        if audio is None or len(audio) < 1600:
+            log.warning("no audio in %s — rendering without captions", video.name)
+            return []
+        with _model_lock:
+            if _model is None:
+                dev = cfg.get("whisper_device", "auto")
+                log.info("loading whisper model %s (%s)", cfg.get("whisper_model", "small"), dev)
+                _model = WhisperModel(cfg.get("whisper_model", "small"), device=dev,
+                                      compute_type="auto")
+            segs, _ = _model.transcribe(audio, language=cfg.get("language") or None,
+                                        word_timestamps=True, vad_filter=True, beam_size=5)
+            words = []
+            for s in segs:
+                for w in s.words or []:
+                    t = w.word.strip()
+                    if t:
+                        words.append({"word": t, "start": float(w.start), "end": float(w.end)})
+        return words
+    except Exception as e:  # noqa: BLE001 — captions are nice-to-have, never lose the clip
+        log.exception("transcription failed (%s) — rendering without captions", e)
+        return []
 
 
 # -- captions -------------------------------------------------------------------
@@ -154,13 +172,17 @@ def hook_from(words: list[dict], start: float, end: float, max_words: int = 6) -
 
 def render(raw: Path, out: Path, cfg: dict, channel: str, duration: float,
            credit_text: str | None = None, moment: float | None = None,
-           logo: Path | None = None, logo_position: str = "top-right") -> dict:
+           logo: Path | None = None, logo_position: str = "top-right",
+           logo_width: int | None = None) -> dict:
     src, dur, teaser = raw, duration, 0.0
     if cfg.get("cold_open", True) and moment is not None:
         src, dur = cold_open(raw, moment, duration)
         teaser = dur - duration
     words = transcribe(src, cfg)
-    credit = (credit_text or f"twitch.tv/{channel}") if cfg.get("credit", True) else None
+    if credit_text == "" or not cfg.get("credit", True):
+        credit = None  # e.g. the campaign's own overlay already credits the streamer
+    else:
+        credit = credit_text or f"twitch.tv/{channel}"
     hook = None
     if cfg.get("hook_title", True):
         hook = hook_from(words, 0, teaser) if teaser else None
@@ -183,10 +205,11 @@ def render(raw: Path, out: Path, cfg: dict, channel: str, duration: float,
     if logo:
         m = 50
         pos = {"top-right": (f"W-w-{m}", f"{m}"), "top-left": (f"{m}", f"{m}"),
+               "top-center": ("(W-w)/2", f"{m + 40}"),
                "bottom-right": (f"W-w-{m}", f"H-h-{m}"), "bottom-left": (f"{m}", f"H-h-{m}")}
         x, y = pos.get(logo_position, pos["top-right"])
         inputs += ["-i", str(Path(logo).resolve())]
-        vf += f"[base];[1:v]scale={L['logo_w']}:-1,format=rgba[lg];[base][lg]overlay={x}:{y}:format=auto[v]"
+        vf += f"[base];[1:v]scale={int(logo_width or L['logo_w'])}:-1,format=rgba[lg];[base][lg]overlay={x}:{y}:format=auto[v]"
     else:
         vf += "[v]"
     cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", *inputs,
