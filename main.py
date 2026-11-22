@@ -106,7 +106,9 @@ class Clipper:
                 wanted = set(await self.pick_channels())
                 now = time.time()
                 for c in wanted - set(self.detectors):
-                    self.detectors[c] = SpikeDetector(c, self.cfg["detection"], now)
+                    camp = self.campaign_for(c) or {}
+                    det_cfg = {**self.cfg["detection"], **(camp.get("detection") or {})}
+                    self.detectors[c] = SpikeDetector(c, det_cfg, now)
                     if c not in self.recorders:
                         self.recorders[c] = StreamRecorder(c, self.work, self.cfg["recording"])
                         self.recorders[c].start()
@@ -298,8 +300,12 @@ def make_caption(meta: dict) -> str:
         hook += "…"
     line1 = f"{hook} 😭" if hook else "chat went crazy 😭"
     parts = [line1]
-    if meta.get("caption_text"):
-        parts.append(meta["caption_text"])
+    ct = meta.get("caption_text")
+    if isinstance(ct, list) and ct:
+        import random
+        ct = random.choice(ct)  # rotate required lines so posts don't look identical
+    if ct:
+        parts.append(ct)
     parts.append(" ".join(meta.get("hashtags") or []))
     return "\n".join(p for p in parts if p).strip()
 

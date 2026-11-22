@@ -66,21 +66,33 @@ campaigns:
     platforms: [TikTok, YouTube Shorts, Instagram Reels, X]
     # Pool: 1K views per clip to count, 750K total views to qualify, paid when the pool ends.
 
-  - name: "KreekCraft GTA 6 Clipping ($1/1K)"
-    url: https://contentrewards.com/c/campaigns/2eaa14fb-6927-4136-897e-b096e0d907d6
-    channels: [kreekcraft]
-    require_game: true            # rule: only his official GTA 6 streams
-    caption_text: "Watch KreekCraft on YouTube and Twitch"   # required line
-    hashtags: ["#GTA6", "#KreekCraft", "#GrandTheftAutoVI"]   # all three required
-    credit: ""                    # no extra credit text — the official overlay already shows it
-    platforms: [TikTok, Instagram Reels, YouTube Shorts]     # X is NOT eligible
-    # REQUIRED: the official logo from the campaign's reference files, saved in the repo at this path.
+  - name: "Boeshi GTA 6 Clipping ($1/1K)"
+    url: https://contentrewards.com/c/campaigns/5c01ecdb-a148-4489-ba26-5aadbbb5bf69
+    # $1/1K views, min payout $3 per clip (= 3,000 views on ONE post), max $300 per clip
+    channels: [darealboeshi]
+    require_game: true            # rule: only his recent GTA 6 streams
+    # Rule: tag his Twitch in every caption. One of these is picked at random per clip.
+    caption_text:
+      - "FULL STREAM at twitch.tv/darealboeshi"
+      - "Watch the full stream 👉 twitch.tv/darealboeshi"
+      - "He really said this live 💀 Full stream at twitch.tv/darealboeshi"
+      - "Catch Boeshi LIVE at twitch.tv/darealboeshi"
+      - "Full VOD on twitch.tv/darealboeshi 🎮"
+    hashtags: ["#Boeshi", "#GTA6", "#GTAVI"]
+    credit: ""                    # the required Twitch overlay already credits him
+    platforms: [TikTok, Instagram Reels, YouTube Shorts]
+    detection:                    # works for small and big chats alike
+      min_msgs_per_sec: 2.0
+      window_seconds: 10
+    # REQUIRED: the campaign's Twitch overlay, uploaded to logos/ (any file ending is fine).
     # Clips without it are flagged on the release page and must not be submitted.
-    logo: logos/kreekcraft.png
-    logo_position: top-center     # the overlay is a wide banner (Twitch + YouTube icons + name)
-    logo_width: 640               # px on the 1080-wide video — big enough to be "clearly visible"
-    # Other rules to follow when posting: 40%+ US/UK/CA/AU audience, 0.8%+ engagement with likes
-    # visible, keep posts up 30+ days, max 5 near-identical posts, warm up new accounts first.
+    logo: logos/boeshi.png
+    logo_position: top-center
+    logo_width: 640
+    # Other rules: 40%+ US/UK/CA/AU audience, 0.8%+ engagement, keep posts up 30+ days,
+    # max 5 near-identical posts, warm up new accounts, no misleading captions.
+    # Brief wants: jokes about his voice, the mewing when he focuses or is scared, "chad" moments,
+    # relatable meme captions ("me in class when it's show and tell day").
 
 output_dir: clips
 work_dir: work
