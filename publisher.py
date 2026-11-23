@@ -49,8 +49,11 @@ class Publisher:
         camp = f" · [{meta['campaign']}]({meta['campaign_url']})" if meta.get("campaign") else ""
         warn = f"> ⚠️ **{meta['warning']}**\n\n" if meta.get("warning") else ""
         plat = f"Post on: {', '.join(meta['platforms'])}\n" if meta.get("platforms") else ""
+        head = (f"### [▶️ {meta['channel']} — ✂️ viewer clip: {meta['viewer_clip_title']}]({url})\n"
+                if meta.get("viewer_clip_title") is not None else
+                f"### [▶️ {meta['channel']} — chat x{meta['hype_ratio']}]({url})\n")
         self.rows.insert(0, (
-            f"### [▶️ {meta['channel']} — chat x{meta['hype_ratio']}]({url})\n"
+            head +
             f"{warn}{viewers} viewers · chat: {tokens}{camp}\n{plat}\n"
             f"Caption (tap copy):\n```\n{meta.get('post_caption', '')}\n```\n"))
         body = ("Clips appear here as they're made — newest first. Tap ▶️ to watch/download, "

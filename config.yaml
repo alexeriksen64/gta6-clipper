@@ -17,7 +17,7 @@ discovery:
 recording:
   quality: "720p60,720p,480p,best"   # lower = less bandwidth; 720p is plenty for Shorts
   segment_seconds: 4
-  buffer_seconds: 180                # rolling buffer kept on disk per stream
+  buffer_seconds: 240                # rolling buffer kept on disk per stream
 
 detection:
   bin_seconds: 1
@@ -109,9 +109,11 @@ campaigns:
     hashtag_pool_pick: 3          # brief says to mix hashtags up between posts
     credit: "FOLLOW twitch.tv/bobby_vanriper"   # on-screen CTA + his Twitch link
     platforms: [TikTok, Instagram Reels, YouTube Shorts]
-    detection:                    # growing streamer, smaller chat
-      min_msgs_per_sec: 2.0
-      window_seconds: 10
+    viewer_clips: true            # also clip every moment his viewers make a Twitch clip of
+    detection:                    # ~100 viewers: tuned so slow chat still triggers, no false alarms
+      min_msgs_per_sec: 1.0
+      window_seconds: 15
+      ratio_threshold: 3.0
     # Rules: English only, likes visible, 1%+ engagement, 40%+ Tier 1 audience (send demographics
     # screen recording in their Discord at 1,500 views), submit within 30 min, keep posts up 30 days,
     # gaming/streamer/clips page only, max 5 near-identical posts. Overlay optional.

@@ -144,6 +144,45 @@ class Clipper:
             rec.stop()
             rec.next_start = 0  # restart right away with the new address
 
+    async def viewer_clip_loop(self):
+        """Small streamers: chat is often too slow to spike, but viewers make Twitch clips of the
+        best moments. When one appears, cut the same moment from our own recording."""
+        chans = [c for camp in self.cfg.get("campaigns") or [] if camp.get("viewer_clips")
+                 for c in camp.get("channels", [])]
+        if not chans or not self.twitch:
+            return await asyncio.Event().wait()  # nothing to do; keep the task alive
+        ids, seen = {}, set()
+        since = time.time()
+        while True:
+            try:
+                if len(ids) < len(chans):
+                    ids = await asyncio.to_thread(self.twitch.user_ids, chans)
+                iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(since - 120))
+                for login, bid in ids.items():
+                    if login not in self.detectors or self.stopping:
+                        continue
+                    for cl in await asyncio.to_thread(self.twitch.new_clips, bid, iso):
+                        if cl["id"] in seen:
+                            continue
+                        seen.add(cl["id"])
+                        created = time.mktime(time.strptime(cl["created_at"], "%Y-%m-%dT%H:%M:%SZ")) - time.timezone
+                        if created < since:
+                            continue  # made before this run started
+                        dur = float(cl.get("duration") or 30)
+                        log.info("✂️ viewer clip on %s: %s (%.0fs)", login, cl.get("title", ""), dur)
+                        # Viewers hit "Clip" right after the funny part, so the punchline is near the
+                        # end of their clip: mark it ~6s before creation (used for the opening hook).
+                        spike = Spike(channel=login, start_ts=created - 3, trigger_ts=created,
+                                      rate=0, baseline=0, ratio=0,
+                                      top_tokens=[], sample_messages=[])
+                        spike.viewer_clip_title = cl.get("title") or ""
+                        self.detectors[login].last_trigger = time.time()  # don't double-clip via chat
+                        # cut: the viewer's clip length before the click + a few seconds after
+                        asyncio.create_task(self.handle_spike(spike, pre=dur + 1, post=4))
+            except Exception as e:  # noqa: BLE001
+                log.warning("viewer clip check failed: %s", e)
+            await asyncio.sleep(20)
+
     # -- housekeeping ----------------------------------------------------------
     async def maintain_loop(self):
         while True:
@@ -167,7 +206,7 @@ class Clipper:
             await asyncio.sleep(0.5)
 
     # -- clipping --------------------------------------------------------------
-    async def handle_spike(self, s: Spike):
+    async def handle_spike(self, s: Spike, pre: float | None = None, post: float | None = None):
         c = s.channel
         rec = self.recorders.get(c)
         if not rec:
@@ -189,14 +228,17 @@ class Clipper:
         try:
             cc = self.cfg["clip"]
             off = float(cc.get("latency_offset_seconds", 0))
-            start = s.start_ts - cc["pre_seconds"] + off
-            end = s.trigger_ts + cc["post_seconds"] + off
+            start = s.start_ts - (cc["pre_seconds"] if pre is None else pre) + off
+            end = s.trigger_ts + (cc["post_seconds"] if post is None else post) + off
             tokens = " ".join(t for t, _ in s.top_tokens[:4])
-            log.info("🔥 %s chat x%.1f (%.1f/s vs %.1f/s) — %s", c, s.ratio, s.rate, s.baseline, tokens)
-            deadline = time.time() + cc["post_seconds"] + 60
+            if getattr(s, "viewer_clip_title", None) is None:
+                log.info("🔥 %s chat x%.1f (%.1f/s vs %.1f/s) — %s", c, s.ratio, s.rate, s.baseline, tokens)
+            deadline = time.time() + (cc["post_seconds"] if post is None else post) + 60
             while rec.covered_until() < end and time.time() < deadline:
                 await asyncio.sleep(2)
-            clip_id = f"{time.strftime('%Y%m%d-%H%M%S', time.localtime(s.start_ts))}_{c}_x{s.ratio:.1f}"
+            vtitle = getattr(s, "viewer_clip_title", None)
+            tag = "viewerclip" if vtitle is not None else f"x{s.ratio:.1f}"
+            clip_id = f"{time.strftime('%Y%m%d-%H%M%S', time.localtime(s.start_ts))}_{c}_{tag}"
             jobdir = self.work / "jobs" / clip_id
             jobdir.mkdir(parents=True, exist_ok=True)
             raw = jobdir / "raw.mp4"
@@ -209,6 +251,7 @@ class Clipper:
                 "clip_start": start, "clip_end": end,
                 "chat_rate": s.rate, "chat_baseline": s.baseline, "hype_ratio": s.ratio,
                 "top_chat_tokens": s.top_tokens, "chat_sample": s.sample_messages,
+                "viewer_clip_title": vtitle,
                 "campaign": camp.get("name") if camp else None,
                 "campaign_url": camp.get("url") if camp else None,
                 "hashtags": pick_hashtags(camp),
@@ -288,7 +331,8 @@ class Clipper:
             await asyncio.sleep(3)
 
     async def run(self):
-        tasks = [self.chat.run(), self.discovery_loop(), self.maintain_loop(), self.tick_loop()]
+        tasks = [self.chat.run(), self.discovery_loop(), self.maintain_loop(), self.tick_loop(),
+                 self.viewer_clip_loop()]
         tasks += [self.edit_worker() for _ in range(int(self.cfg["edit"].get("workers", 1)))]
         tasks = [asyncio.ensure_future(t) for t in tasks]
         if self.minutes:

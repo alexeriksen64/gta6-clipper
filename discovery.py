@@ -70,3 +70,16 @@ class Twitch:
         return {s["user_login"].lower(): {"login": s["user_login"].lower(), "name": s["user_name"],
                 "viewers": s["viewer_count"], "title": s["title"], "game": s.get("game_name", "")}
                 for s in data}
+
+    def user_ids(self, logins: list[str]) -> dict:
+        """{login: broadcaster_id}"""
+        if not logins:
+            return {}
+        data = self._get("users", [("login", l) for l in logins]).get("data", [])
+        return {u["login"].lower(): u["id"] for u in data}
+
+    def new_clips(self, broadcaster_id: str, since_iso: str) -> list[dict]:
+        """Clips viewers created since `since_iso` (RFC3339), newest first."""
+        data = self._get("clips", {"broadcaster_id": broadcaster_id, "started_at": since_iso,
+                                   "first": 50}).get("data", [])
+        return sorted(data, key=lambda c: c["created_at"], reverse=True)
