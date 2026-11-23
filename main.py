@@ -211,7 +211,7 @@ class Clipper:
                 "top_chat_tokens": s.top_tokens, "chat_sample": s.sample_messages,
                 "campaign": camp.get("name") if camp else None,
                 "campaign_url": camp.get("url") if camp else None,
-                "hashtags": (camp or {}).get("hashtags", ["#GTA6", "#GTAVI"]),
+                "hashtags": pick_hashtags(camp),
                 "credit": (camp or {}).get("credit"),
                 "caption_text": (camp or {}).get("caption_text"),
                 "platforms": (camp or {}).get("platforms"),
@@ -317,6 +317,16 @@ def find_logo(path: str) -> Path | None:
             if f.is_file() and f.name.lower().split(".")[0] == stem:
                 return f
     return None
+
+
+def pick_hashtags(camp: dict | None) -> list[str]:
+    """Required hashtags + a random few from the campaign's pool, so posts don't all look the same."""
+    import random
+    camp = camp or {}
+    tags = list(camp.get("hashtags", ["#GTA6", "#GTAVI"]))
+    pool = [t for t in camp.get("hashtag_pool") or [] if t not in tags]
+    k = min(int(camp.get("hashtag_pool_pick", 3)), len(pool))
+    return tags + random.sample(pool, k) if k else tags
 
 
 def make_caption(meta: dict) -> str:

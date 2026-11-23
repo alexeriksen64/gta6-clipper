@@ -94,5 +94,27 @@ campaigns:
     # Brief wants: jokes about his voice, the mewing when he focuses or is scared, "chad" moments,
     # relatable meme captions ("me in class when it's show and tell day").
 
+  - name: "Bobby Vanriper GTA VI Clipping"
+    url: https://contentrewards.com/c/campaigns/f583b069-ced7-49e5-9ed3-2d3a13d6df0c
+    channels: [bobby_vanriper]
+    require_game: true            # rule: GTA VI streams only, non-GTA clips are rejected
+    # CTA rule: mention Bobby + where to watch him. One line is picked at random per clip.
+    caption_text:
+      - "Follow Bobby Vanriper on Twitch 👉 twitch.tv/bobby_vanriper"
+      - "Catch Bobby LIVE every day at twitch.tv/bobby_vanriper"
+      - "Bobby Vanriper streams GTA 6 daily 🎮 twitch.tv/bobby_vanriper"
+      - "Watch Bobby Vanriper live on Twitch: twitch.tv/bobby_vanriper"
+    hashtags: ["#bobbyvanriper"]  # required on every post
+    hashtag_pool: ["#gta6", "#gtavi", "#twitch", "#streamer", "#twitchclips", "#gaming", "#funnymoments"]
+    hashtag_pool_pick: 3          # brief says to mix hashtags up between posts
+    credit: "FOLLOW twitch.tv/bobby_vanriper"   # on-screen CTA + his Twitch link
+    platforms: [TikTok, Instagram Reels, YouTube Shorts]
+    detection:                    # growing streamer, smaller chat
+      min_msgs_per_sec: 2.0
+      window_seconds: 10
+    # Rules: English only, likes visible, 1%+ engagement, 40%+ Tier 1 audience (send demographics
+    # screen recording in their Discord at 1,500 views), submit within 30 min, keep posts up 30 days,
+    # gaming/streamer/clips page only, max 5 near-identical posts. Overlay optional.
+
 output_dir: clips
 work_dir: work
