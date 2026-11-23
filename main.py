@@ -119,7 +119,7 @@ class Clipper:
                     yt_url = camp.get("youtube")
                     if yt_url and c not in self.yt:
                         from youtube import YouTubeChat
-                        self.yt[c] = YouTubeChat(c, yt_url, self.on_message)
+                        self.yt[c] = YouTubeChat(c, yt_url, self.on_message, self.set_stream_url)
                         asyncio.create_task(self.yt[c].run())
                     if c not in self.recorders:
                         self.recorders[c] = StreamRecorder(c, self.work, self.cfg["recording"], url=yt_url)
@@ -134,6 +134,15 @@ class Clipper:
             except Exception as e:  # noqa: BLE001
                 log.error("discovery failed: %s", e)
             await asyncio.sleep(self.cfg["discovery"].get("refresh_seconds", 300))
+
+    def set_stream_url(self, channel: str, url: str):
+        """YouTube: switch the recorder to the video that is actually live."""
+        rec = self.recorders.get(channel)
+        if rec and rec.url != url:
+            log.info("recorder %s -> %s", channel, url)
+            rec.url = url
+            rec.stop()
+            rec.next_start = 0  # restart right away with the new address
 
     # -- housekeeping ----------------------------------------------------------
     async def maintain_loop(self):
