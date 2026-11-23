@@ -94,5 +94,20 @@ campaigns:
     # Brief wants: jokes about his voice, the mewing when he focuses or is scared, "chad" moments,
     # relatable meme captions ("me in class when it's show and tell day").
 
+  - name: "Dylan Page GTA VI Marathon ($1/1K)"
+    url: https://contentrewards.com/c/campaigns/39753a1a-f1f3-491b-a8f6-0cfee0af0c97
+    channels: [dylanpage]         # internal name; he streams on YouTube, not Twitch
+    youtube: https://www.youtube.com/@dylan.page./live
+    require_game: false           # YouTube has no game category...
+    title_must_contain: ["GTA"]   # ...so only clip while his stream title mentions GTA
+    hashtags: ["#DylanPage", "#GTA6", "#GTAVI"]   # #DylanPage is required
+    credit: ""                    # rule: no added watermarks or third-party branding
+    platforms: [TikTok, Instagram Reels, YouTube Shorts, X]
+    detection:
+      min_msgs_per_sec: 2.0
+      window_seconds: 10
+    # Rules: Dylan must be the main focus, English captions, no misleading captions,
+    # don't reuse the same thumbnail, no collab posts, no added watermarks. Auto subtitles are allowed.
+
 output_dir: clips
 work_dir: work

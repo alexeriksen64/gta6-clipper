@@ -42,6 +42,7 @@ class Clipper:
         self.retired: set[str] = set()
         self.queue: asyncio.Queue = asyncio.Queue()
         self.chat = ChatClient(self.on_message)
+        self.yt: dict = {}  # key -> YouTubeChat, for campaigns streamed on YouTube
         self.twitch = None
         t = cfg["twitch"]
         t["client_id"] = os.environ.get("TWITCH_CLIENT_ID") or t.get("client_id")
@@ -78,10 +79,16 @@ class Clipper:
         else:
             chans = None
         if chans is not None:
-            if self.twitch:  # refresh live status / current game
-                live = await asyncio.to_thread(self.twitch.channel_status, chans)
-                for c in chans:
+            yt_keys = [c for c in chans if (self.campaign_for(c) or {}).get("youtube")]
+            tw = [c for c in chans if c not in yt_keys]
+            if self.twitch and tw:  # refresh live status / current game
+                live = await asyncio.to_thread(self.twitch.channel_status, tw)
+                for c in tw:
                     self.info[c] = live.get(c, {"login": c, "offline": True})
+            for c in yt_keys:
+                st = self.yt[c].status if c in self.yt else None
+                self.info[c] = ({"login": c, "title": st.get("title", ""), "platform": "youtube"}
+                                if st else {"login": c, "offline": True, "platform": "youtube"})
             return chans
         top = await asyncio.to_thread(
             self.twitch.top_streams, self.cfg["game_names"], d["top_n"] + 3,
@@ -109,14 +116,19 @@ class Clipper:
                     camp = self.campaign_for(c) or {}
                     det_cfg = {**self.cfg["detection"], **(camp.get("detection") or {})}
                     self.detectors[c] = SpikeDetector(c, det_cfg, now)
+                    yt_url = camp.get("youtube")
+                    if yt_url and c not in self.yt:
+                        from youtube import YouTubeChat
+                        self.yt[c] = YouTubeChat(c, yt_url, self.on_message)
+                        asyncio.create_task(self.yt[c].run())
                     if c not in self.recorders:
-                        self.recorders[c] = StreamRecorder(c, self.work, self.cfg["recording"])
+                        self.recorders[c] = StreamRecorder(c, self.work, self.cfg["recording"], url=yt_url)
                         self.recorders[c].start()
                     self.retired.discard(c)
                 for c in set(self.detectors) - wanted:
                     del self.detectors[c]
                     self.retired.add(c)  # recorder stops once pending clips finish
-                await self.chat.set_channels(set(self.detectors))
+                await self.chat.set_channels({c for c in self.detectors if c not in self.yt})
                 log.info("watching: %s", ", ".join(
                     f"{c}({self.info.get(c, {}).get('viewers', '?')})" for c in sorted(self.detectors)))
             except Exception as e:  # noqa: BLE001
@@ -158,6 +170,12 @@ class Clipper:
                        for g in self.cfg["game_names"]):
                 log.info("skip %s spike: streaming '%s', campaign needs GTA VI", c, info["game"])
                 return
+        words = (camp or {}).get("title_must_contain")
+        if words and not info.get("offline"):
+            title = (info.get("title") or "").lower()
+            if title and not any(w.lower() in title for w in words):
+                log.info("skip %s spike: stream title '%s' doesn't mention %s", c, title[:60], words)
+                return
         self.pending[c] = self.pending.get(c, 0) + 1
         try:
             cc = self.cfg["clip"]
@@ -176,7 +194,7 @@ class Clipper:
             if not await asyncio.to_thread(rec.cut, start, end, raw):
                 return
             meta = {
-                "id": clip_id, "channel": c, "url": f"https://twitch.tv/{c}",
+                "id": clip_id, "channel": c, "url": (camp or {}).get("youtube") or f"https://twitch.tv/{c}",
                 "viewers": self.info.get(c, {}).get("viewers"),
                 "stream_title": self.info.get(c, {}).get("title"),
                 "clip_start": start, "clip_end": end,

@@ -29,8 +29,9 @@ class StreamRecorder:
     which is the same clock chat messages are stamped with.
     """
 
-    def __init__(self, channel: str, work_dir: Path, cfg: dict):
+    def __init__(self, channel: str, work_dir: Path, cfg: dict, url: str | None = None):
         self.channel = channel
+        self.url = url or f"https://twitch.tv/{channel}"
         self.dir = Path(work_dir) / "buffer" / channel
         self.quality = cfg.get("quality", "720p60,720p,best")
         self.seg = int(cfg.get("segment_seconds", 4))
@@ -47,7 +48,7 @@ class StreamRecorder:
         self.dir.mkdir(parents=True, exist_ok=True)
         sl = [sys.executable, "-m", "streamlink", "--stdout", "--loglevel", "error",
               "--twitch-disable-ads", "--twitch-low-latency",
-              f"https://twitch.tv/{self.channel}", self.quality]
+              self.url, self.quality]
         ff = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", "pipe:0",
               "-map", "0:v:0", "-map", "0:a:0?", "-c", "copy",
               "-f", "segment", "-segment_time", str(self.seg), "-segment_format", "mpegts",
