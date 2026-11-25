@@ -118,5 +118,17 @@ campaigns:
     # screen recording in their Discord at 1,500 views), submit within 30 min, keep posts up 30 days,
     # gaming/streamer/clips page only, max 5 near-identical posts. Overlay optional.
 
+# Campaigns that stack ON TOP of the streamer campaigns above: every clip also gets their logo
+# and hashtags, and the release page says "Also submit to …".
+stack_campaigns:
+  - name: "GTA VI Clipup Logo"
+    url: ""                       # paste the campaign link to show it on the release page
+    logo: logos/clipup.png        # their "Hire Clippers — 1B+ Views Generated" banner (any file ending)
+    logo_width: 900               # big and unshrunk-looking; sits right under the gameplay, never covered
+    hashtags: ["#gta6", "#Clipup"]
+    apply_to: [kaicenat]          # only Kai clips get the ClipUp logo (use "all" for every streamer)
+    # Rules: logo on screen the whole clip, never covered/stretched/recoloured/cropped,
+    # streamer gameplay only, keep posts up 60+ days, no other creators' watermarks.
+
 output_dir: clips
 work_dir: work

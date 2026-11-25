@@ -49,6 +49,9 @@ class Publisher:
         camp = f" · [{meta['campaign']}]({meta['campaign_url']})" if meta.get("campaign") else ""
         warn = f"> ⚠️ **{meta['warning']}**\n\n" if meta.get("warning") else ""
         plat = f"Post on: {', '.join(meta['platforms'])}\n" if meta.get("platforms") else ""
+        for a in meta.get("also_submit") or []:
+            plat += (f"➕ Also submit to: [{a['name']}]({a['url']})\n" if a.get("url")
+                     else f"➕ Also submit to: {a['name']}\n")
         head = (f"### [▶️ {meta['channel']} — ✂️ viewer clip: {meta['viewer_clip_title']}]({url})\n"
                 if meta.get("viewer_clip_title") is not None else
                 f"### [▶️ {meta['channel']} — chat x{meta['hype_ratio']}]({url})\n")

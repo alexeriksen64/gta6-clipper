@@ -84,6 +84,13 @@ def chunk_words(words: list[dict], per: int) -> list[list[dict]]:
 
 
 def layout(cfg: dict) -> dict:
+    L = _layout(cfg)
+    if cfg.get("cap_margin_override") is not None:
+        L["cap_margin"] = int(cfg["cap_margin_override"])
+    return L
+
+
+def _layout(cfg: dict) -> dict:
     size = int(cfg.get("caption_size", 88))
     if cfg.get("format", "vertical") == "horizontal":
         return dict(W=1920, H=1080, size=int(size * 0.8), cap_margin=110, credit_align=7,
@@ -173,7 +180,8 @@ def hook_from(words: list[dict], start: float, end: float, max_words: int = 6) -
 def render(raw: Path, out: Path, cfg: dict, channel: str, duration: float,
            credit_text: str | None = None, moment: float | None = None,
            logo: Path | None = None, logo_position: str = "top-right",
-           logo_width: int | None = None) -> dict:
+           logo_width: int | None = None, stack_logo: Path | None = None,
+           stack_logo_width: int | None = None) -> dict:
     src, dur, teaser = raw, duration, 0.0
     if cfg.get("cold_open", True) and moment is not None:
         src, dur = cold_open(raw, moment, duration)
@@ -188,6 +196,11 @@ def render(raw: Path, out: Path, cfg: dict, channel: str, duration: float,
         hook = hook_from(words, 0, teaser) if teaser else None
         if not hook and moment is not None:
             hook = hook_from(words, teaser + moment - 1.5, teaser + moment + 2.5)
+    vertical = cfg.get("format", "vertical") != "horizontal"
+    if stack_logo and vertical:
+        # the stacked logo sits right under the 16:9 gameplay (y≈1280), so move the subtitles up
+        # onto the lower part of the gameplay; they can never reach the logo
+        cfg = {**cfg, "cap_margin_override": 700}
     ass = src.parent / "captions.ass"
     ass.write_text(build_ass(words, cfg, credit, dur, hook), encoding="utf-8")
 
@@ -202,16 +215,26 @@ def render(raw: Path, out: Path, cfg: dict, channel: str, duration: float,
               "boxblur=24:2,eq=brightness=-0.12[bg];"
               "[b]scale=1080:-2[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,ass=captions.ass")
     inputs = ["-i", src.name]
+    layers = []  # (path, width, x, y) — drawn AFTER the captions, so nothing can cover them
     if logo:
         m = 50
         pos = {"top-right": (f"W-w-{m}", f"{m}"), "top-left": (f"{m}", f"{m}"),
                "top-center": ("(W-w)/2", f"{m + 40}"),
                "bottom-right": (f"W-w-{m}", f"H-h-{m}"), "bottom-left": (f"{m}", f"H-h-{m}")}
         x, y = pos.get(logo_position, pos["top-right"])
-        inputs += ["-i", str(Path(logo).resolve())]
-        vf += f"[base];[1:v]scale={int(logo_width or L['logo_w'])}:-1,format=rgba[lg];[base][lg]overlay={x}:{y}:format=auto[v]"
-    else:
-        vf += "[v]"
+        layers.append((logo, int(logo_width or L["logo_w"]), x, y))
+    if stack_logo:
+        if vertical:
+            layers.append((stack_logo, int(stack_logo_width or 900), "(W-w)/2", "1280"))
+        else:
+            layers.append((stack_logo, int(stack_logo_width or 900) // 2, "W-w-40", "40"))
+    prev = "base"
+    vf += "[base]" if layers else "[v]"
+    for i, (path, w, x, y) in enumerate(layers, start=1):
+        inputs += ["-i", str(Path(path).resolve())]
+        lbl = "v" if i == len(layers) else f"l{i}"
+        vf += f";[{i}:v]scale={w}:-1,format=rgba[lg{i}];[{prev}][lg{i}]overlay={x}:{y}:format=auto[{lbl}]"
+        prev = lbl
     cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", *inputs,
            "-filter_complex", vf, "-map", "[v]", "-map", "0:a?",
            "-c:v", "libx264", "-preset", "fast", "-crf", "20", "-pix_fmt", "yuv420p",

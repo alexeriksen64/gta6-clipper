@@ -261,6 +261,17 @@ class Clipper:
                 # chat reacts ~3s after the moment; position of that moment inside the clip
                 "moment_offset": round(min(max(s.start_ts - 3 - start, 1.5), (end - start) - 1.5), 2),
             }
+            for st in stacks_for(self.cfg, c):
+                meta.setdefault("also_submit", []).append({"name": st["name"], "url": st.get("url") or ""})
+                meta["hashtags"] = merge_tags(meta["hashtags"], st.get("hashtags") or [])
+                if st.get("logo"):
+                    sp = find_logo(st["logo"])
+                    if sp:
+                        meta["stack_logo"] = str(sp)
+                        meta["stack_logo_width"] = st.get("logo_width")
+                    else:
+                        meta["warning"] = ((meta.get("warning") or "") +
+                                           f" {st['name']} logo file {st['logo']} missing — don't submit this clip to {st['name']}.").strip()
             if camp and camp.get("logo"):
                 lp = find_logo(camp["logo"])
                 if lp:
@@ -293,7 +304,7 @@ class Clipper:
                     res = await asyncio.to_thread(
                         render, jobdir / "raw.mp4", final, self.cfg["edit"], c, dur, meta.get("credit"),
                         meta.get("moment_offset"), meta.get("logo"), meta.get("logo_position", "top-right"),
-                        meta.get("logo_width"))
+                        meta.get("logo_width"), meta.get("stack_logo"), meta.get("stack_logo_width"))
                     meta["file"] = str(final)
                     meta["hook"] = res["hook"]
                     meta["transcript"] = " ".join(w["word"] for w in res["words"])
@@ -361,6 +372,21 @@ def find_logo(path: str) -> Path | None:
             if f.is_file() and f.name.lower().split(".")[0] == stem:
                 return f
     return None
+
+
+def stacks_for(cfg: dict, channel: str) -> list[dict]:
+    """Extra campaigns (e.g. logo campaigns) that every clip of this channel also qualifies for."""
+    out = []
+    for st in cfg.get("stack_campaigns") or []:
+        targets = st.get("apply_to", "all")
+        if targets == "all" or channel in [t.lower() for t in targets]:
+            out.append(st)
+    return out
+
+
+def merge_tags(tags: list[str], extra: list[str]) -> list[str]:
+    seen = {t.lower() for t in tags}
+    return tags + [t for t in extra if t.lower() not in seen and not seen.add(t.lower())]
 
 
 def pick_hashtags(camp: dict | None) -> list[str]:
