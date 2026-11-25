@@ -1,0 +1,35 @@
+name: Add logo to old clips
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "Whose old clips get the logo"
+        default: "kaicenat"
+
+permissions:
+  contents: write
+
+jobs:
+  add-logo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ffmpeg
+        timeout-minutes: 6
+        run: |
+          mkdir -p "$HOME/ffmpeg"
+          curl -fsSL --retry 3 --max-time 180 -o /tmp/ff.tar.xz \
+            https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz
+          tar -xJf /tmp/ff.tar.xz -C "$HOME/ffmpeg" --strip-components=1
+          echo "$HOME/ffmpeg/bin" >> "$GITHUB_PATH"
+      - name: Install Python packages
+        run: pip install -q pyyaml requests
+      - name: Add logo to old clips
+        run: python add_logo_old.py --channel "${{ inputs.channel }}"
